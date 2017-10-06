@@ -10,7 +10,8 @@ export default
 class CacheableImage extends React.Component {
 
     constructor(props) {
-        super(props)
+        super(props);
+        
         this.imageDownloadBegin = this.imageDownloadBegin.bind(this);
         this.imageDownloadProgress = this.imageDownloadProgress.bind(this);
         this._handleConnectivityChange = this._handleConnectivityChange.bind(this);
@@ -41,6 +42,12 @@ class CacheableImage extends React.Component {
         return true;
     }
     
+    setNativeProps(nativeProps) {
+        if (this._imageComponent) {
+            this._imageComponent.setNativeProps(nativeProps);
+        }
+    }
+
     async imageDownloadBegin(info) {
         switch (info.statusCode) {
             case 404:
@@ -168,7 +175,8 @@ class CacheableImage extends React.Component {
     
     _processSource(source, skipSourceCheck) {
 
-        if (source !== null
+        if (this.props.storagePermissionGranted 
+            && source !== null
             && source != ''
             && typeof source === "object"
             && source.hasOwnProperty('uri')
@@ -241,10 +249,13 @@ class CacheableImage extends React.Component {
 
     async _handleConnectivityChange(isConnected) {
         this.networkAvailable = isConnected;
+        if (this.networkAvailable && this.state.isRemote && !this.state.cachedImagePath) {
+            this._processSource(this.props.source);
+        }
     };
   
     render() {        
-        if (!this.state.isRemote && !this.props.defaultSource) {
+        if ((!this.state.isRemote && !this.props.defaultSource) || !this.props.storagePermissionGranted) {
             return this.renderLocal();
         }
 
@@ -256,15 +267,17 @@ class CacheableImage extends React.Component {
             return this.renderDefaultSource();
         }
         
+        const { children, defaultSource, checkNetwork, networkAvailable, downloadInBackground, activityIndicatorProps, ...props } = this.props;
+        const style = [activityIndicatorProps.style, this.props.style];
         return (
-            <ActivityIndicator {...this.props.activityIndicatorProps} />
+            <ActivityIndicator {...props} {...activityIndicatorProps} style={style} />
         );
     }
 
     renderCache() {
         const { children, defaultSource, checkNetwork, networkAvailable, downloadInBackground, activityIndicatorProps, ...props } = this.props;
         return (
-            <ResponsiveImage {...props} source={{uri: 'file://'+this.state.cachedImagePath}}>
+            <ResponsiveImage {...props} source={{uri: 'file://'+this.state.cachedImagePath}} ref={component => this._imageComponent = component}>
             {children}
             </ResponsiveImage>
         );
@@ -273,7 +286,7 @@ class CacheableImage extends React.Component {
     renderLocal() {
         const { children, defaultSource, checkNetwork, networkAvailable, downloadInBackground, activityIndicatorProps, ...props } = this.props;
         return (
-            <ResponsiveImage {...props}>
+            <ResponsiveImage {...props} ref={component => this._imageComponent = component}>
             {children}
             </ResponsiveImage>
         );
@@ -282,7 +295,7 @@ class CacheableImage extends React.Component {
     renderDefaultSource() {
         const { children, defaultSource, checkNetwork, networkAvailable, ...props } = this.props;        
         return (
-            <CacheableImage {...props} source={defaultSource} checkNetwork={false} networkAvailable={this.networkAvailable} >
+            <CacheableImage {...props} source={defaultSource} checkNetwork={false} networkAvailable={this.networkAvailable} ref={component => this._imageComponent = component}>
             {children}
             </CacheableImage>
         );
@@ -298,10 +311,9 @@ CacheableImage.propTypes = {
     ]),
     checkNetwork: React.PropTypes.bool,
     networkAvailable: React.PropTypes.bool,
-    downloadInBackground: React.PropTypes.bool
+    downloadInBackground: React.PropTypes.bool,
+    storagePermissionGranted: React.PropTypes.bool
 };
-
-console.log(Platform);
 
 CacheableImage.defaultProps = {
     style: { backgroundColor: 'transparent' },
@@ -311,5 +323,6 @@ CacheableImage.defaultProps = {
     useQueryParamsInCacheKey: false, // bc
     checkNetwork: true,
     networkAvailable: false,
-    downloadInBackground: (Platform.OS === 'ios') ? false : true
+    downloadInBackground: (Platform.OS === 'ios') ? false : true,
+    storagePermissionGranted: true
 };
